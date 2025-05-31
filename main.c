@@ -7,9 +7,14 @@
 #define PORT 8080
 #define CONNECTION_QUEUE_SIZE 128
 #define REQUEST_BUFFER_SIZE 1024
+#define PATH_BUFFER_SIZE 256
+#define RESPONSE_BUFFER_SIZE 1024
 
 int main() {
   char request_buffer[REQUEST_BUFFER_SIZE];
+  char path_buffer[PATH_BUFFER_SIZE];
+  // char response_buffer[RESPONSE_BUFFER_SIZE];
+
   struct sockaddr client_address;
   socklen_t client_address_length;
   int server_socket, client_socket, ret, yes = 1;
@@ -66,6 +71,7 @@ int main() {
     // Read request data
     do {
 	bzero(request_buffer, REQUEST_BUFFER_SIZE);
+	bzero(path_buffer, PATH_BUFFER_SIZE);
 
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
 
@@ -79,11 +85,32 @@ int main() {
 	    goto close;
 	}
 
+	if (strncmp("GET", request_buffer, 3) == 0) {
+	    // Copy the path into a seperate buffer
+
+	    int end = 0, start = 4; // "GET /path"
+				    //      ^ start here
+
+	    // Find the end index of the path
+	    for (int i = start; i < PATH_BUFFER_SIZE && end == 0; ++i) {
+		if (request_buffer[i] == ' ') {
+		    end = i;
+		}
+	    }
+
+	    if (end == 0 || start == end) {
+		// Path too big or invalid request
+		// TODO: return 4XX error
+		goto close;
+	    }
+
+	    memcpy(path_buffer, request_buffer + start, end - start);
+	}
+
 	// printf("Bytes read: %d\n", ret);
 	printf("%s", request_buffer);
     } while (ret == REQUEST_BUFFER_SIZE);
     printf("\n\n");
-
 
     // Send a response to the client
     const char *response = "HTTP 1.1 200 OK\r\n\r\n";
