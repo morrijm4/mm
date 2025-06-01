@@ -1,24 +1,33 @@
+#include <errno.h>
+#include <stdlib.h>
 #include <string.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <stdio.h>
-#include <sys/_types/_socklen_t.h>
 
 #define PORT 8080
 #define CONNECTION_QUEUE_SIZE 128
+
 #define REQUEST_BUFFER_SIZE 1024
-#define PATH_BUFFER_SIZE 256
 #define RESPONSE_BUFFER_SIZE 1024
+#define PATH_BUFFER_SIZE 256
+
+#define FILE_PATH_BUFFER_SIZE 256
 
 int main() {
   char request_buffer[REQUEST_BUFFER_SIZE];
   char path_buffer[PATH_BUFFER_SIZE];
-  // char response_buffer[RESPONSE_BUFFER_SIZE];
+  char response_buffer[RESPONSE_BUFFER_SIZE];
+
+  FILE *file = NULL;
+  char *file_buffer = NULL;
 
   struct sockaddr client_address;
   socklen_t client_address_length;
-  int server_socket, client_socket, ret, yes = 1;
+  int server_socket, client_socket, start, end, ret, yes = 1;
   struct sockaddr_in server_address = {0};
+
+
 
   // Create TCP socket
   server_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -29,7 +38,7 @@ int main() {
   printf("Server socket file discriptor: %d\n", server_socket);
 
 
-  // Set socket options
+  // Allow address to be reused by the socket
   ret = setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
 
   if (ret < 0) {
@@ -69,10 +78,8 @@ int main() {
     }
 
     // Read request data
+    bzero(path_buffer, PATH_BUFFER_SIZE);
     do {
-	bzero(request_buffer, REQUEST_BUFFER_SIZE);
-	bzero(path_buffer, PATH_BUFFER_SIZE);
-
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
 
 	if (ret < 0) {
@@ -88,8 +95,8 @@ int main() {
 	if (strncmp("GET", request_buffer, 3) == 0) {
 	    // Copy the path into a seperate buffer
 
-	    int end = 0, start = 4; // "GET /path"
-				    //      ^ start here
+	    end = 0, start = 4; // "GET /path"
+				//      ^ start here
 
 	    // Find the end index of the path
 	    for (int i = start; i < PATH_BUFFER_SIZE && end == 0; ++i) {
@@ -107,19 +114,107 @@ int main() {
 	    memcpy(path_buffer, request_buffer + start, end - start);
 	}
 
-	// printf("Bytes read: %d\n", ret);
+
 	printf("%s", request_buffer);
+	bzero(request_buffer, REQUEST_BUFFER_SIZE);
     } while (ret == REQUEST_BUFFER_SIZE);
+
     printf("\n\n");
 
+    // Create the file path
+    char file_path_buffer[FILE_PATH_BUFFER_SIZE];
+    if (strcmp(path_buffer, "/") == 0) {
+	snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, "./www%sindex.html", path_buffer);
+    } else {
+	snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, "./www%s", path_buffer);
+    }
+
+    // Open file
+    file = fopen(file_path_buffer, "r");;
+
+    if (file == NULL) {
+	if (errno == ENOENT) {
+	    snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
+			"HTTP/1.1 404 Not Found\r\n"
+			"Content-Type: text/plain\r\n"
+			"Content-Length: 0\r\n");
+	    goto send;
+	} else {
+	    perror("fopen");
+	    goto close;
+	}
+    }
+
+    // Get file size
+    ret = fseek(file, 0, SEEK_END);
+    if (ret < 0) {
+	perror("fseek");
+	goto close;
+    }
+
+    long file_size = ftell(file);
+    if (file_size < 0) {
+	perror("ftell");
+	goto close;
+    }
+
+    // TODO: handle rewind errors
+    rewind(file);
+
+    // Allocate memory for file contents
+    file_buffer = malloc(file_size + 1);
+
+    if (file_buffer == NULL) {
+	perror("malloc");
+	goto close;
+    }
+
+    fread(file_buffer, sizeof(char), file_size, file);
+
+    if (ferror(file)) {
+	printf("fread: an error reading the file has occured\n");
+	goto close;
+    }
+
+
     // Send a response to the client
-    const char *response = "HTTP 1.1 200 OK\r\n\r\n";
+    snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
+	    "HTTP/1.1 200 OK\r\n"
+	    "Content-Type: text/html\r\n"
+	    "Content-Length: %lu\r\n"
+	    "Cache-Control: max-age=604800\r\n"
+	    "\r\n"
+	    "%s",
+	    file_size, file_buffer);
 
-    send(client_socket, response, strlen(response), 0);
+send:
+    ret = send(client_socket, response_buffer, strlen(response_buffer), 0);
 
-    // Close client socket
+    if (ret == RESPONSE_BUFFER_SIZE) {
+	// TODO: figure out a good way to handle this
+	printf("Response buffer is too small\n");
+    }
+
+    if (ret < 0) {
+	perror("send");
+	goto close;
+    }
+
 close:
+    // Close client socket
     close(client_socket);
+
+    // Close file if open
+    if (file != NULL) {
+	fclose(file);
+	file = NULL;
+    }
+
+    // Close file buffer if open
+    if (file_buffer != NULL) {
+	free(file_buffer);
+	file_buffer = NULL;
+    }
   }
 
   return 0;
