@@ -1,0 +1,1 @@
+.custom-border{border-width:clamp(.1px,.1vh,1px)}.play-button{padding-inline:clamp(var(--spacing) * 1,2vw,var(--spacing) * 4);padding-block:clamp(var(--spacing) * .25,1vw,var(--spacing) * 1)}
