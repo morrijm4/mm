@@ -5,11 +5,13 @@
 #include <unistd.h>
 #include <stdio.h>
 
+#include "string.c"
+
 #define PORT 8080
 #define CONNECTION_QUEUE_SIZE 128
 
 #define REQUEST_BUFFER_SIZE 1024
-#define RESPONSE_BUFFER_SIZE 1024
+#define RESPONSE_BUFFER_SIZE 65536
 #define PATH_BUFFER_SIZE 256
 
 #define FILE_PATH_BUFFER_SIZE 256
@@ -18,9 +20,12 @@ int main() {
   char request_buffer[REQUEST_BUFFER_SIZE];
   char path_buffer[PATH_BUFFER_SIZE];
   char response_buffer[RESPONSE_BUFFER_SIZE];
+  char *mime;
 
   FILE *file = NULL;
   char *file_buffer = NULL;
+  long file_size;
+  char file_path_buffer[FILE_PATH_BUFFER_SIZE];
 
   struct sockaddr client_address;
   socklen_t client_address_length;
@@ -122,15 +127,10 @@ int main() {
     printf("\n\n");
 
     // Create the file path
-    char file_path_buffer[FILE_PATH_BUFFER_SIZE];
-    if (strcmp(path_buffer, "/") == 0) {
-	snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, "./www%sindex.html", path_buffer);
-    } else {
-	snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, "./www%s", path_buffer);
-    }
+    snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, strcmp(path_buffer, "/") == 0 ? "./www%sindex" : "./www%s", path_buffer);
 
     // Open file
-    file = fopen(file_path_buffer, "r");;
+    file = fopen(file_path_buffer, "rb");;
 
     if (file == NULL) {
 	if (errno == ENOENT) {
@@ -152,7 +152,7 @@ int main() {
 	goto close;
     }
 
-    long file_size = ftell(file);
+    file_size = ftell(file);
     if (file_size < 0) {
 	perror("ftell");
 	goto close;
@@ -176,29 +176,50 @@ int main() {
 	goto close;
     }
 
+    // Determine content type
+    if (ends_with(file_path_buffer, ".css")) {
+	mime = "text/css";
+    } else if (ends_with(file_path_buffer, ".js")) {
+	mime = "text/javascript";
+    } else if (ends_with(file_path_buffer, ".svg")) {
+	mime = "image/svg+xml";
+    } else if (ends_with(file_path_buffer, ".png")) {
+	mime = "image/png";
+    } else if (ends_with(file_path_buffer, ".ttf")) {
+	mime = "font/ttf";
+    } else {
+	mime = "text/html";
+    }
 
     // Send a response to the client
     snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
 	    "HTTP/1.1 200 OK\r\n"
-	    "Content-Type: text/html\r\n"
+	    "Content-Type: %s\r\n"
 	    "Content-Length: %lu\r\n"
 	    "Cache-Control: max-age=604800\r\n"
-	    "\r\n"
-	    "%s",
-	    file_size, file_buffer);
+	    "\r\n",
+	    mime, file_size);
 
 send:
     ret = send(client_socket, response_buffer, strlen(response_buffer), 0);
 
-    if (ret == RESPONSE_BUFFER_SIZE) {
-	// TODO: figure out a good way to handle this
-	printf("Response buffer is too small\n");
+    if (ret == (RESPONSE_BUFFER_SIZE - 1)) {
+	// TODO: return a 500 instead
+	printf("Response buffer is too small. File size %ld\n", file_size);
     }
 
     if (ret < 0) {
 	perror("send");
 	goto close;
     }
+
+    ret = send(client_socket, file_buffer, file_size, 0);
+
+    if (ret < 0) {
+	perror("send");
+	goto close;
+    }
+
 
 close:
     // Close client socket
@@ -212,6 +233,7 @@ close:
 
     // Close file buffer if open
     if (file_buffer != NULL) {
+	// TODO: use realloc instead
 	free(file_buffer);
 	file_buffer = NULL;
     }
