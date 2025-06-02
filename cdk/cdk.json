@@ -1,0 +1,4 @@
+{
+    "app": "bun src/cdk.ts",
+    "profile": "personal-profile.dev"
+}

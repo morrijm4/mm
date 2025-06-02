@@ -130,19 +130,21 @@ int main() {
     snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, strcmp(path_buffer, "/") == 0 ? "./www%sindex" : "./www%s", path_buffer);
 
     // Open file
-    file = fopen(file_path_buffer, "rb");;
+    file = fopen(file_path_buffer, "rb");
 
     if (file == NULL) {
-	if (errno == ENOENT) {
-	    snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
-			"HTTP/1.1 404 Not Found\r\n"
-			"Content-Type: text/plain\r\n"
-			"Content-Length: 0\r\n");
-	    goto send;
-	} else {
+	if (errno != ENOENT) {
 	    perror("fopen");
 	    goto close;
-	}
+	} 
+
+	// Redirect to home page
+	snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
+		"HTTP/1.1 307 Temporary Redirect\r\n"
+		"Location: /\r\n"
+		"Content-Length: 0\r\n"
+		"\r\n");
+	goto send;
     }
 
     // Get file size
@@ -210,6 +212,10 @@ send:
 
     if (ret < 0) {
 	perror("send");
+	goto close;
+    }
+
+    if (file_buffer == NULL) {
 	goto close;
     }
 

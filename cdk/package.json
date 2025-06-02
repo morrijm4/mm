@@ -1,0 +1,20 @@
+{
+  "name": "cdk",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "sso": "aws sso login --profile personal-profile.dev"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "aws-cdk": "^2.1017.1",
+    "aws-cdk-lib": "^2.199.0",
+    "constructs": "^10.4.2"
+  }
+}

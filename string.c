@@ -1,5 +1,3 @@
-#pragma once
-
 #include <assert.h>
 #include <string.h>
 
@@ -28,4 +26,4 @@ int main() {
     assert(!ends_with(NULL, NULL));
 }
 
-#endif
+#endif // UNIT_TESTS
