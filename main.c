@@ -88,12 +88,12 @@ int main() {
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
 
 	if (ret < 0) {
-	    printf("recv: an unexpected error has occured");
+	    printf("recv: an unexpected error has occured:\n", errno);
 	    goto close;
 	}
 
 	if (ret == 0) {
-	    printf("recv: connection has been closed by the client");
+	    printf("recv: connection has been closed by the client\n");
 	    goto close;
 	}
 
