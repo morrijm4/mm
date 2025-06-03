@@ -248,6 +248,10 @@ close:
 	free(file_buffer);
 	file_buffer = NULL;
     }
+
+    if (EOF == fflush(stdout)) {
+	perror("fflush");
+    }
   }
 
   return 0;
