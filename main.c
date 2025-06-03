@@ -83,8 +83,10 @@ int main() {
     }
 
     // Read request data
-    bzero(path_buffer, PATH_BUFFER_SIZE);
     do {
+	bzero(path_buffer, PATH_BUFFER_SIZE);
+	bzero(request_buffer, REQUEST_BUFFER_SIZE);
+
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
 
 	if (ret < 0) {
@@ -126,7 +128,6 @@ int main() {
 
 
 	printf("%s", request_buffer);
-	bzero(request_buffer, REQUEST_BUFFER_SIZE);
     } while (ret == REQUEST_BUFFER_SIZE);
 
     printf("\n\n");
