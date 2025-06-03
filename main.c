@@ -24,6 +24,7 @@ int main() {
 
   FILE *file = NULL;
   char *file_buffer = NULL;
+  char *file_extension;
   long file_size;
   char file_path_buffer[FILE_PATH_BUFFER_SIZE];
 
@@ -32,8 +33,6 @@ int main() {
   int server_socket, client_socket, start, end, ret, yes = 1;
   struct sockaddr_in server_address = {0};
 
-
-
   // Create TCP socket
   server_socket = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -41,7 +40,6 @@ int main() {
     return 1;
   }
   printf("Server socket file discriptor: %d\n", server_socket);
-
 
   // Allow address to be reused by the socket
   ret = setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(int));
@@ -83,8 +81,8 @@ int main() {
     }
 
     // Read request data
+    bzero(path_buffer, PATH_BUFFER_SIZE);
     do {
-	bzero(path_buffer, PATH_BUFFER_SIZE);
 	bzero(request_buffer, REQUEST_BUFFER_SIZE);
 
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
@@ -135,6 +133,9 @@ int main() {
     // Create the file path
     snprintf(file_path_buffer, FILE_PATH_BUFFER_SIZE, strcmp(path_buffer, "/") == 0 ? "./www%sindex" : "./www%s", path_buffer);
 
+    // Determine file type
+    file_extension = get_file_extension(file_path_buffer, FILE_PATH_BUFFER_SIZE);
+
     // Open file
     file = fopen(file_path_buffer, "rb");
 
@@ -144,12 +145,21 @@ int main() {
 	    goto close;
 	} 
 
-	// Redirect to home page
-	snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
-		"HTTP/1.1 307 Temporary Redirect\r\n"
-		"Location: /\r\n"
-		"Content-Length: 0\r\n"
-		"\r\n");
+	if (file_extension == NULL) {
+	    // Redirect to home page because looking for html
+	    snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
+		    "HTTP/1.1 307 Temporary Redirect\r\n"
+		    "Location: /\r\n"
+		    "Content-Length: 0\r\n"
+		    "\r\n");
+	} else {
+	    snprintf(response_buffer, RESPONSE_BUFFER_SIZE,
+		    "HTTP/1.1 404 Not Found\r\n"
+		    "Content-Type: text/html\r\n"
+		    "Content-Length: 0\r\n"
+		    "\r\n");
+	}
+
 	goto send;
     }
 
@@ -184,19 +194,21 @@ int main() {
 	goto close;
     }
 
-    // Determine content type
-    if (ends_with(file_path_buffer, ".css")) {
+    // Determine mime type
+    if (file_extension == NULL) {
+	mime = "text/html";
+    } else if (strcmp(file_extension, "css") == 0) {
 	mime = "text/css";
-    } else if (ends_with(file_path_buffer, ".js")) {
+    } else if (strcmp(file_extension, "js") == 0) { 
 	mime = "text/javascript";
-    } else if (ends_with(file_path_buffer, ".svg")) {
+    } else if (strcmp(file_extension, "svg") == 0) { 
 	mime = "image/svg+xml";
-    } else if (ends_with(file_path_buffer, ".png")) {
+    } else if (strcmp(file_extension, "png") == 0) { 
 	mime = "image/png";
-    } else if (ends_with(file_path_buffer, ".ttf")) {
+    } else if (strcmp(file_extension, "ttf") == 0) { 
 	mime = "font/ttf";
     } else {
-	mime = "text/html";
+	mime = "application/octet-stream";
     }
 
     // Send a response to the client
