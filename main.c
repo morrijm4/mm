@@ -88,7 +88,7 @@ int main() {
 	ret = recv(client_socket, request_buffer, REQUEST_BUFFER_SIZE, 0);
 
 	if (ret < 0) {
-	    printf("recv: an unexpected error has occured:\n", errno);
+	    printf("recv: an unexpected error has occured: %d\n", errno);
 	    goto close;
 	}
 
