@@ -103,6 +103,11 @@ int main() {
 	    end = 0, start = 4; // "GET /path"
 				//      ^ start here
 
+	    // Check if not a relative path (ipv4 scanners try to provide URLs)
+	    if (request_buffer[start] != '/') {
+		// TODO: return 4XX for not providing relative path
+	    }
+
 	    // Find the end index of the path
 	    for (int i = start; i < PATH_BUFFER_SIZE && end == 0; ++i) {
 		if (request_buffer[i] == ' ') {
